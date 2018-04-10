@@ -1,0 +1,127 @@
+<html>
+<head>
+<style>
+body { font-family:arial; margin:.5in; }
+#formContainer { display:flex; justify-content: space-evenly }
+.formLabel { font-weight: bold; }
+.formMessage { font-size:smaller }
+iframe { width:500px; height:400px }
+.recentAnnotations { display: flex; margin-top:20px;}
+</style>
+
+<script src="https://jonudell.info/hlib/hlib.js"></script>
+
+</head>
+
+<body>
+
+<div id="formContainer">
+  <div id="userContainer"></div>
+  <div id="tokenContainer"></div>
+</div>
+
+<div class="recentAnnotations">
+
+  <div>
+    <iframe id="last0" src=""></iframe>
+  </div>
+
+  <div>
+    <iframe id="last1" src=""></iframe>
+  </div>
+
+</div>
+
+<div id="viewer"></div>
+
+<div id="postButton"></div>
+
+<p id="status"></p>
+
+<script>
+
+var last0Id, last0Url, last0Body, last1Id, last1Url, last1Body;
+
+function crossLink() {
+	var body0 = last0Body;
+	body0 += `<p>Cited from <a href="https://hyp.is/go?url=${last1Url}">https://hyp.is/go?url=${last1Url}</a></p>`;
+  var opts = {
+    method: 'put',
+    url: `https://hypothes.is/api/annotations/${last1Id}`,
+    params: JSON.stringify({text: body0}),
+  };
+
+  opts = setApiTokenHeaders(opts);
+
+  opts.headers['Content-Type'] = 'application/json;charset=utf-8'  
+
+  httpRequest(opts)
+    .then( function (data) {
+    	console.log('crosslink0', JSON.parse(data.response));
+
+      var body1 = last1Body;
+    	body1 += `<p>Cited from <a href="https://hyp.is/go?url=${last0Url}">https://hyp.is/go?url=${last0Url}</a></p>`;
+      var opts = {
+        method: 'put',
+        url: `https://hypothes.is/api/annotations/${last0Id}`,
+        params: JSON.stringify({text: body1}),
+      };
+
+     opts = setApiTokenHeaders(opts);
+     opts.headers['Content-Type'] = 'application/json;charset=utf-8'  
+
+     httpRequest(opts)
+      .then( function (data) {
+       	console.log('crosslink1', JSON.parse(data.response));
+      });
+
+    });
+}
+
+function loadIframe(id, src) {
+  getById(id).src = src;
+}
+
+function callback(data) {
+	var latest = parseAnnotation(data[0]);
+  [ last0Id, last0Body, last0Url ] = [ latest.id, latest.text, latest.url ];
+  loadIframe('last0', `https://hypothes.is/a/${last0Id}`);
+
+	var nextLatest = parseAnnotation(data[1]);
+  [ last1Id, last1Body, last1Url ] = [ nextLatest.id, nextLatest.text, nextLatest.url ];
+  loadIframe('last1', `https://hypothes.is/a/${last1Id}`);
+}
+
+function app() {
+
+	var tokenContainer = getById('tokenContainer');
+	createApiTokenInputForm(tokenContainer);
+
+	var userContainer = getById('userContainer');
+	createUserInputForm(userContainer);
+
+  var params = {
+  	"user": getUser(),
+  	"max": 2,
+  }
+
+  hApiSearch(params, callback);
+
+	var html =  `
+<p>
+Crosslink these annotations? 
+</p>`;
+
+	viewer.innerHTML = html;
+
+	var buttonHTML = `<div id="postButton"><button onclick="crossLink()">crosslink annotations</button></div>`;
+	var button = getById('postButton');
+	button.innerHTML = buttonHTML;
+}
+
+app();
+
+</script>
+
+</body>
+</html>
